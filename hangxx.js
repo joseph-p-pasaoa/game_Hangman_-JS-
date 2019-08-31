@@ -41,7 +41,8 @@ const player = require('play-sound')(opts = {});
 const sound = (file, description) => {
   player.play(file, function(err) {
       if (err) {
-        bg.kill();
+        bg0.kill();
+        clearInterval(bgX);
         throw err;
       }
   } );
@@ -75,11 +76,11 @@ const moveCRel = (howManyX, howManyY) => { // moves cursor via Terminal, from re
 }
 
 // base text RESETS
+const tReset = `\x1b[0m`;
 const tKillDim = `\x1b[22m`;
 const tKillBlink = `\x1b[25m`;
 
 // base text STYLES
-const tReset = `\x1b[0m`;
 const tBold = `\x1b[1m`;
 const tDim = `\x1b[2m`;
 const tBlink = `\x1b[5m`;
@@ -221,7 +222,7 @@ let game = {
   // maxTime: null,
   solution: null,
   uniqueSolutionCharsObj: {},
-  hiddenLettersLeft: [],
+  hiddenLettersLeft: null,
   rollSolution() {
     let currentWordBank = wordBanks[this.categoryIdx].bank;
     this.solution = currentWordBank[ Math.floor(Math.random() * currentWordBank.length) ];
@@ -250,20 +251,23 @@ const setUpLetters = (solution) => {
 
 // STATUS WINDOW // to do timer, best time for difficulty
 const guiStatusMarquee = () => {
-  let guessWarning = `${tLGreen}`;
-  let lastGuessAlert = ``;
+  let guessesLeftStyle = `${tLGreen}`;
+  let wholeGuessStyle = `${tWhite}`;
+
   if (user.guessesLeft <= 3) {
-    guessWarning = `${tLRed}`;
+    guessesLeftStyle = `${tLRed}`;
   }
   if (user.guessesLeft === 1) {
-    lastGuessAlert = `${tBlink}${tLRed}`;
+    wholeGuessStyle = `${tBlink}${tLRed}`;
   }
-
+  if (user.guessesLeft === 0) {
+    wholeGuessStyle = `${tLRed}`;
+  }
+  
 
   print(``);
   let categStr = `${tBlue}⫷   Category : ${tDim}${tBold}${tCyan}${wordBanks[game.categoryIdx].category.toUpperCase()}${tReset}   ${tBlue}⫸${tReset}`;
-  let guessStr = `${lastGuessAlert}⫷    Guesses Left : ${tBold}${guessWarning}${user.guessesLeft} / ${
-    user.maxGuesses}   ${tWhite}⫸${tReset}`; // to do gradient asterisk bar sys
+  let guessStr = `${wholeGuessStyle}⫷    Guesses Left : ${tBold}${guessesLeftStyle}${user.guessesLeft} / ${user.maxGuesses}   ${wholeGuessStyle}⫸${tReset}`; // to do gradient asterisk bar sys
   print(`       ${categStr}   ${guessStr} \n`);
 }
 
@@ -274,9 +278,13 @@ const guiLettersMarquee = () => {
 
   let uiLettersMarquee = `${tDim}${tDGray} Letters to play ${tReset}:   `;
   for (let i of letters) {
-    i.isGuessed
-      ? uiLettersMarquee += `${tDim}${tDGray}${i.name.toUpperCase()}${tReset}  `   // if letter guessed...
-      : uiLettersMarquee += `${tLYellow}${i.name.toUpperCase()}${tReset}  `;      // if letter not guessed... 
+    if (i.isGuessed) {
+      uiLettersMarquee += `${tDim}${tDGray}${i.name.toUpperCase()}${tReset}  `  // if letter guessed...
+    } else if (user.guessesLeft === 0 && i.isInSolution) {
+      uiLettersMarquee += `${tRed}${i.name.toUpperCase()}${tReset}  `;         // if letter not guessed... and game is lost...
+    } else {
+      uiLettersMarquee += `${tLYellow}${i.name.toUpperCase()}${tReset}  `;      // if letter not guessed... and game still going...
+    }
   }
   uiLettersMarquee += `  :${tDim}${tDGray} Letters to play${tReset}`;
 
@@ -290,30 +298,37 @@ const guiLettersMarquee = () => {
 // SOLUTION MARQUEE //
 const guiSolutionBoard = () => {
 
-  let uiSolutionBoard = "      ";
-  let uiSolutionBase = "      ";
+  let uiSolutionBoard = `      `;
+  let uiSolutionBase = `      `;
   game.hiddenLettersLeft = 0;
   for (let i of game.solution) {
-    if (i.toLowerCase() !== i.toUpperCase()) {                  // old conditional: (i !== "_" && i !== "-" && i !== ":")
+    if (i.toLowerCase() !== i.toUpperCase()) {                  // old conditional: (i !== `_` && i !== `-` && i !== `:`)
       let letterVar = eval("letter" + i.toUpperCase());
       if (letterVar.isGuessed === false) {                      // renders letters still hiding
         game.hiddenLettersLeft += 1;                                  // victory condition check
-        uiSolutionBoard += "    ";
-        uiSolutionBase += "▔▔▔ ";
+        if (user.guessesLeft !== 0) {
+          uiSolutionBoard += `    `;
+          uiSolutionBase += `▔▔▔ `;
+        } else {                                                // reveals unguessed letters at game loss
+          uiSolutionBoard += ` ${tDim}${tRed}${letterVar.name.toUpperCase()}${tReset}  `;
+          uiSolutionBase += `▔▔▔ `;
+        }
       } else {                                                  // renders guessed letters
         uiSolutionBoard += ` ${letterVar.name.toUpperCase()}  `
-        uiSolutionBase += "▔▔▔ ";
+        user.guessesLeft !== 0
+          ? uiSolutionBase += `▔▔▔ `
+          : uiSolutionBase += `    `;
       }
     } else {
-      if (i === "_") {                                          // renders spaces
-        uiSolutionBoard += "    ";
-        uiSolutionBase += "    ";
-      } else if (i === "-") {                                   // renders hyphens
-        uiSolutionBoard += " -  ";
-        uiSolutionBase += "    ";
-      } else if (i === ":") {                                   // renders colons
-        uiSolutionBoard += " :  ";
-        uiSolutionBase += "    ";
+      if (i === `_`) {                                          // renders spaces
+        uiSolutionBoard += `    `;
+        uiSolutionBase += `    `;
+      } else if (i === `-`) {                                   // renders hyphens
+        uiSolutionBoard += ` -  `;
+        uiSolutionBase += `    `;
+      } else if (i === `:`) {                                   // renders colons // TODO hide until previous letter revealed
+        uiSolutionBoard += ` :  `;
+        uiSolutionBase += `    `;
       }
     }
   }
@@ -355,7 +370,7 @@ const guiMessageBoard = (situation) => {
       break;
 
     case `repeatGuess`:
-      sound('./audio/sfx-repeatedguess-buzzer', 'buzzer');
+      sound('./audio/sfx-repeatedguess-buzzer.mp3', 'buzzer');
 
       let repeatReply1 = `${tYellow}You've already said that letter...${tReset}   Try again.`;
       let repeatReply2 = `${tYellow}Already chose that letter...${tReset}   You do know how to use the tracker above, don't you?`;
@@ -479,11 +494,21 @@ const guiBottom = () => {
   let showPlatform = ``;
   // }
 
-  print(`${showPlatform}                                                                   ${tLRed}➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽${tDim} ${tRed}⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊ `);
+  print(`${showPlatform}                                                                   ${tDim}${tCyan}➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽➽ ${tRed}⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊⨊ `);
   print(`${tDim}${tRed}~~~ ~ ~~ ~~~~ ~ ~~~~ ~~~~ ~~~~ ~ ~ ~~~~ ~ ~ ~~~~ ~ ~ ~~~~ ~ ~ ~ ~ ~~~~ ~ ~~~~ ~~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~${tReset}\n`);
   print(`${tDim}${tLGray}~ ~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~~ ~~~~ ~~~~ ~ ~ ~~~~ ~ ~ ~~~~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~ ~ ~~~~`);
   print(` ~~~~ ~ ~~~~ ~ ~~~ ~ ~~~~ ~~~~ ~ ~ ~ ~~~~ ~ ~ ~~~~ ~ ~~~~ ~ ~~~~ ~ ~~~~`);
-  print(`~ ~~~~ ~ ~~~~ ~~~~ ~~~                                                      ${tReset}`);
+  print(`~ ~~~~ ~ ~~~~ ~~~~ ~~~${game.hiddenLettersLeft}                                                      ${tReset}`);
+}
+
+
+
+const guiEndingMsg = (situation) => {
+  if (situation === 'win') {
+    print(`${pMove(4, 25)}Win!`);
+  } else {
+
+  }
 }
 
 
@@ -509,18 +534,12 @@ const gui = (situation) => {
   guiSolutionBoard();
   guiLettersMarquee();
   guiStatusMarquee();
-  guiMessageBoard(situation);
-  guiGallows();
-  guiBottom();
-}
-const guiLoss = () => {
-  clear();
-  guiTop();
-  guiSolutionBoard();
-  guiLettersMarquee();
-  guiStatusMarquee();
-  guiMessageBoard(situation);
-  guiGallows();
+  if (situation === 'loss' || situation === 'win') {
+    guiEndingMsg(situation);
+  } else {
+    guiMessageBoard(situation);
+    guiGallows();
+  }
   guiBottom();
 }
 
@@ -551,7 +570,7 @@ const introGUI = () => {
   print(`  ${xTitle}HANG-XX :: by Joseph P. Pasaoa`);
   print(`  ${tDim}${tDGray}Copyright (C) 2019. All rights reserved.${tReset}\n\n`);
   // print(`  Optimized for the MAC OSX Terminal.`);
-  print(`  Please ${tCyan}adjust your video${tReset} so "LAST LINE" is 3-7 lines from the bottom of your window.`);
+  print(`  Please ${tCyan}adjust your video${tReset} so the words "LAST LINE" below are 3-7 lines from the bottom of your window.`);
   print(`     ( ${xInputHightlight}Command${tWhite} and ${plusOrMinus} on Macs, ${xInputHightlight}Ctrl${tWhite} and ${plusOrMinus} on Windows )`);
   print(`  ${tCyan}Adjust your audio${tReset} to medium for the full experience. \n\n`);
   print(`  When ready, Enter [${xInputHightlight}c${tWhite}] to toggle the credits or Enter ${xInputHightlight}any other key${tWhite} to play.${tReset} `);
@@ -570,7 +589,7 @@ const introGUI = () => {
     print(`\n    SPECIAL THANKS TO: \n        ${tReset}Alejandro Franco, Jung Rae Jang${tReset}`);
   }
   moveCAbs(0, 49);
-  prompter(`  LAST LINE `);
+  prompter(`  LAST LINE\n ${xUserPrompt} `);
 }
 
 
@@ -597,19 +616,6 @@ const gameEngine = () => {
             return !userInput || userInput.toLowerCase() === userInput.toUpperCase();
         }
       }
-      
-      const evalStanding = () => {
-        // LOSS CHECK
-        if (user.guessesLeft === 0) {
-          return 'loss';
-
-        // WIN CHECK
-        } else if (game.hiddenLettersLeft === 0) {
-          return 'win';
-      
-        // CONTINUE ROUND
-        }
-      }
 
 
 
@@ -631,7 +637,7 @@ const gameEngine = () => {
             game.goToIdx = 1100;
 
           case 1100:
-            sound('./audio/stage -1-intoqs-pitch.mp3', 'high pitch');
+            sound('./audio/stage-1-intoqs-pitch.mp3', 'high pitch');
               
             clear();
             moveCAbs(0,4);
@@ -675,7 +681,7 @@ const gameEngine = () => {
             moveCRel(0,2);
             print(`  ${tReset}~ Alright ${tLGreen}${user.name.toUpperCase()}${tWhite}, let's begin. ~${tReset}\n\n\n    ...`);
             moveCAbs(0,47);
-            prompter(`    ${tDGray}Press ${tReset}${xInputHightlight}Return/Enter${tDGray} to start  ${tReset}`);
+            prompter(`    ${tDGray}Press ${tReset}${xInputHightlight}Return/Enter${tDGray} to start\n    ${tReset}`);
             game.checkVsInput = 'noCheck';
             break;
 
@@ -692,45 +698,34 @@ const gameEngine = () => {
 
           case 1600: // // MAIN GAME ROUND LOOP
             let letterVar = eval('letter' + userInput.toUpperCase());
-            let situation = '';
+            let situationEval = '';
             if (letterVar.isGuessed) {
-              situation = 'repeatGuess';
+              situationEval = 'repeatGuess';
             } else if (!letterVar.isInSolution) {
-              situation = 'badGuess';
+              situationEval = 'badGuess';
               letterVar.guessed();
               user.guessesLeft -= 1;
             } else {
-              situation = 'goodGuess';
+              situationEval = 'goodGuess';
               letterVar.guessed();
             }
-            switch (evalStanding()) {
-              case 'loss':
-                game.goToIdx = 6000;
-                user.record.losses += 1;
-                gui(); // REPLACE WITH END GUI
-                break;
-              case 'win':
-                game.goToIdx = 7000;
-                user.record.wins += 1;
-                break;
-              default:
-                game.goToIdx -= 100;
-                gui(situation);
-                rl.prompt();
+            
+            if (user.guessesLeft === 0) {
+              user.record.losses += 1;
+              sound('./audio/stage-6-gamelost-thunderstrike.mp3');
+              gui('loss');
+              prompter(`Play again?`);
+            } else if (game.hiddenLettersLeft === 0) {
+              user.record.wins += 1;
+              sound('./audio/stage-7-gamewin-flockflaps.mp3');
+              gui('win');
+              prompter(`Play again?`);
+            } else {
+              game.goToIdx -= 100;
+              gui(situationEval);
+              rl.prompt();
             }
             break;
-          
-          case 6100: // ROUND LOST
-            gui();
-           
-            clear();
-            print('You LOST\n');
-            print(user.record);
-            print('\n\n\nEnter] Play again?\nc] Change something?)\n x] Quit Game');
-            prompter('> ');
-            break;
-
-          
 
           default:
             print(`GAME ERROR :/`);
@@ -740,19 +735,31 @@ const gameEngine = () => {
   } );
 }
 
-let bg = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
+
+
+// BACKGROUND SOUND AMBIENCE LOOP INIT //
+player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
   if (err) {
     throw err;
   }
 } );
-setInterval( () => {
-  let bg = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
+// let bg0 = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
+//   if (err) {
+//     throw err;
+//   }
+// } );
+
+let bgX = setInterval( () => {
+  bg0 = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
     if (err) {
       throw err;
     }
   } );
-}, 277000 );
+}, 280000 );
 
+
+
+// GAME RUNS //
 introGUI();
 gameEngine();
 
