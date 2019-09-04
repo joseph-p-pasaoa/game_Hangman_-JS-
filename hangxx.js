@@ -37,10 +37,13 @@ const player = require('play-sound')(opts = {});
 const sound = (file, description) => {
   player.play(file, function(err) {
       if (err) {
-        if (bg1) {
+        if (bg1 !== undefined) {
           bg1.kill();
         }
-        clearInterval(bgX);
+        if (bgX !== undefined) {
+          bgX.kill();
+        }
+        clearInterval(bgInt);
         throw err;
       }
   } );
@@ -75,8 +78,6 @@ const moveCRel = (howManyX, howManyY) => { // moves cursor via Terminal, from re
 
 // base text RESETS
 const tReset = `\x1b[0m`;
-// const tKillDim = `\x1b[22m`; // unused
-// const tKillBlink = `\x1b[25m`; // unused
 
 // base text STYLES
 const tBold = `\x1b[1m`;
@@ -132,7 +133,7 @@ let wordBanks = [
     category: "Movie Titles of 2018",
     bank: [
       "Avengers:_Infinity_War", "Black_Panther", "Aquaman", "Bohemian_Rhapsody", "Venom", "The_Crimes_of_Grindelwald", "Incredibles_Two", 
-      "Deadpool_Two", "Into_the_Spider-Verse", "M:I Fallout", "Incredibles_Two", "Annihilation", "A_Star_is_Born", "Game_Night", 
+      "Deadpool_Two", "Into_the_Spider-Verse", "M:I_Fallout", "Incredibles_Two", "Annihilation", "A_Star_is_Born", "Game_Night", 
       "Ant-Man_and_the_Wasp", "Isle_of_Dogs", "Solo:_A_Star_Wars_Story", "First_Man"
     ]
   }
@@ -228,7 +229,6 @@ let game = {
   // maxTime: null,
   solution: null,
   solutionLettersHiding: {},
-  // hiddenLettersLeft: null,
   rollSolution() {
     let currentWordBank = wordBanks[this.categoryIdx].bank;
     this.solution = currentWordBank[ Math.floor(Math.random() * currentWordBank.length) ];
@@ -383,7 +383,7 @@ const guiSolutionMarquee = () => {
       }
 
     } else {
-      if (i === `_`) {                                          // renders spaces
+      if (i === `_` || i === ` `) {                             // renders spaces
         wordMarquee += `    `;
         linesMarquee += `    `;
       } else if (i === `-`) {                                   // renders hyphens
@@ -634,30 +634,46 @@ const gui = (situation) => {
   guiGallows();
   guiBottom();
 }
+
+
+
+const credits = () => {
+  let styleGroup = `${tDim}${tDGray}`;
+  let styleMembers = `${tReset}`;
+  let styleLinks = `${tDim}${tCyan}`;
+
+  let leftMargin = `${tReset}     ░  `;
+  if (game.checkVsInput === 'roundEnd') {
+    leftMargin = '        ';
+  }
+  print(`${leftMargin}`)
+  print(`${leftMargin}`);
+  print(`${leftMargin}    ${styleGroup}SOFTWARE: ${styleMembers}MS Visual Studio Code, Audacity`);
+  print(`${leftMargin}      ${styleLinks}https://code.visualstudio.com`);
+  print(`${leftMargin}       ${styleLinks}https://www.audacityteam.org`);
+  print(`${leftMargin}`);
+  print(`${leftMargin}    ${styleGroup}MODULES: ${styleMembers}Readline, Play-sound`);
+  print(`${leftMargin}      ${styleLinks}https://nodejs.org/api/readline.html`);
+  print(`${leftMargin}       ${styleLinks}https://www.npmjs.com/package/play-sound`);
+  print(`${leftMargin}`);
+  print(`${leftMargin}    ${styleGroup}AUDIO SAMPLES: ${styleMembers}ZapSplat, Daniel Simon`);
+  print(`${leftMargin}      ${styleLinks}http://www.zapsplat.com`);
+  print(`${leftMargin}       ${styleLinks}http://www.soundbible.com, D.Simon via SoundBible`);
+  print(`${leftMargin}`);
+  print(`${leftMargin}    ${styleMembers}Alejandro Franco, Jung Rae Jang, Dessa Shepherd`);
+  print(`${leftMargin}     ${styleGroup}Special Thanks!`);
+  print(`${leftMargin}      ${styleLinks}https://alejo4373.github.io/me/`);
+  print(`${leftMargin}       ${styleLinks}http://www.jungraejang.com/`);
+  print(`${leftMargin} ${tReset}`);
+}
   
-  
+
 
 // CORE GAME ENGINE w INPUT FOCUS //
 const redoPrompt = () => {
   readline.moveCursor(process.stdin, 0, -1);
   rl.prompt(true);
 }
-const credits = () => {
-  print(`${tReset}${tDim}${tDGray}`)
-  print(`\n    SOFTWARE: ${tReset}MS Visual Studio Code, Audacity${tDim}${tCyan}`);
-  print(  `      https://code.visualstudio.com`);
-  print(  `      https://www.audacityteam.org${tDim}${tDGray}`);
-  print(`\n    MODULES: ${tReset}Readline, Play-sound${tDim}${tCyan}`);
-  print(  `      https://nodejs.org/api/readline.html`);
-  print(  `      https://www.npmjs.com/package/play-sound${tReset}${tDim}${tDGray}`);
-  print(`\n    AUDIO SAMPLES: ${tReset}ZapSplat, Daniel Simon${tDim}${tCyan}`);
-  print(  `      http://www.zapsplat.com`);
-  print(  `      http://www.soundbible.com, D.Simon via SoundBible${tReset}${tDim}${tDGray}`);
-  print(`\n    SPECIAL THANKS TO: \n        ${tReset}Alejandro Franco, Jung Rae Jang, Dessa Shepherd${tReset}`);
-  print(`\n`);
-}
-
-
 
 const introGUI = () => {
   let plusOrMinus = `${xInputBold}+${tWhite}/${xInputBold}-${tWhite}`;
@@ -666,24 +682,29 @@ const introGUI = () => {
   print(`${pMove(3, 2)}`);
   print(`  ${xTitle}HANG-XX :: by Joseph P. Pasaoa`);
   print(`  ${tDim}${tDGray}Copyright (C) 2019. All rights reserved.${tReset}\n\n`);
-  // print(`  Optimized for the MAC OSX Terminal.`);
-  print(`  Please ${tCyan}adjust your video${tReset} so the words "LAST LINE" below are 3-7 lines from the bottom of your window.`);
+  print(`  Please ${tCyan}adjust your window and zoom${tReset} so that the visual below fits completely without scrolling.`);
   print(`     ( ${xInputBold}Command${tWhite} and ${plusOrMinus} on Macs, ${xInputBold}Ctrl${tWhite} and ${plusOrMinus} on Windows )`);
-  print(`  ${tCyan}Adjust your audio${tReset} to medium for the full experience. \n\n`);
+  print(`  ${tCyan}Set your audio${tReset} to medium for the full experience. \n\n`);
   print(`  When ready, Enter [${xInputBold}c${tWhite}] to toggle the credits or Enter ${xInputBold}any other key${tWhite} to play.${tReset} `);
-
+  moveCRel(0, 2);
   if (game.showCredits) {
-    print(`${pMove(4, 7)}${tMage}Credits${tDim}${tDGray} >> >> >> \n`);
+    print(`     ░`);
+    print(`     ░      ${tGreen}CREDITS${tReset} ● ● ● `);
     credits();
+    for (let i = 0; i < 15; i++) {
+      print(`     ░`);
+    }
+  } else {
+    for (let i = 0; i < 36; i++) {
+      print(`     ░`);
+    }
   }
-  moveCAbs(0, 49);
-  prompter(`${tReset}  LAST LINE     ${xUserPrompt} `);
+  prompter(`${tReset}     ░░░░ LAST LINE ░░░░░░░    ${xUserPrompt} `);
 }
 
 const gameEngine = () => {
   rl.on('line', (userInput) => {
       userInput = userInput.trim();
-      // let letterVar;
 
       const checkInputErr = () => {
         switch (game.checkVsInput) { // purely for input error checks
@@ -882,7 +903,10 @@ const gameEngine = () => {
       if (bg1) {
         bg1.kill();
       }
-      clearInterval(bgX);
+      if (bgX !== undefined) {
+        bgX.kill();
+      }
+      clearInterval(bgInt);
   } );
 }
 
@@ -890,13 +914,14 @@ const gameEngine = () => {
 
 // RUN //
 // background ambient sound loop -- start
+  let bgX = null;
   const bg1 = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
     if (err) {
       throw err;
     }
   } );
-  const bgX = setInterval( () => {
-    player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
+  const bgInt = setInterval( () => {
+    bgX = player.play("./audio/bgm-2minStorm-Joeyedit.mp3", function(err) {
       if (err) {
         throw err;
       }
